@@ -1,7 +1,4 @@
-(require 'lispbuilder-sdl)
-(require 'iterate)
-(require 'alexandria)
-
+(in-package :sandbox)
 (defvar *width* 800)
 (defvar *height* 600)
 
@@ -32,7 +29,6 @@
 (defvar *last* nil)
 
 (defun line-drawer ()
-  (unless *last* (setf *last* (random-point)))
   (let ((p (random-close-point *last* (+ 10 (random 30)))))
     (sdl:draw-circle p 5 :color sdl:*green*)
     (sparkles p)
@@ -80,7 +76,7 @@
   
 
 (defun idle ()
- 
+   (unless *last* (setf *last* (random-point)))
   (fader)
   (laser) 
   (line-drawer)
