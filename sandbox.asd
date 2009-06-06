@@ -14,4 +14,5 @@
   :components ((:module
 		:src
 		:components ((:file "packages")
-			     (:file "sdl" :depends-on ("packages"))))))
+			     (:file "sdl" :depends-on ("packages"))
+			     (:file "sim" :depends-on ("sdl"))))))
