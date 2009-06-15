@@ -14,6 +14,13 @@
 			 #:spatial-trees #:cl-heap #:dice)
   :components ((:module
 		:src
-		:components ((:file "packages")
-			     (:file "sdl" :depends-on ("packages"))
-			     (:file "sim" :depends-on ("sdl"))))))
+		:components
+		((:file "packages")
+		 (:file "sdl" :depends-on ("packages"))
+		 (:file "sim" :depends-on ("sdl"))
+		 (:file "actor" :depends-on ("sim"))
+		 (:file "movable" :depends-on ("actor"))
+		 (:file "effects" :depends-on ("actor"))
+		 (:file "ship" :depends-on ("movable" "effects"))
+		 (:file "weapons" :depends-on ("ship"))
+		 ))))
