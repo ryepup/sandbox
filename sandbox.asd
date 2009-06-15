@@ -11,7 +11,7 @@
   :licence "LGPL (or talk to me)"
   :version "0.1"
   :depends-on (#:iterate #:alexandria #:lispbuilder-sdl
-			 #:spatial-trees)
+			 #:spatial-trees #:cl-heap #:dice)
   :components ((:module
 		:src
 		:components ((:file "packages")

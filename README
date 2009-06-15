@@ -1,0 +1,5 @@
+Requires a few non-standard libraries:
+
+cl-heap get_svn svn://common-lisp.net/project/cl-heap/svn/cl-heap/trunk
+xlunit get_tarball http://files.b9.com/xlunit/xlunit-latest.tar.gz
+dice get_tarball http://src.hexapodia.net/dice.tar.gz
