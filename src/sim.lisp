@@ -8,7 +8,7 @@
 	 (lambda ()
 	   (sdl :idlefn (lambda ()
 			  (simulation-update))
-		:frame-rate 15)))))
+		:frame-rate 25)))))
 
 (defgeneric rectangle (actor)
   (:method ((actor T))
@@ -16,34 +16,23 @@
 
 (defvar *world* (spatial-trees:make-spatial-tree
 		 :r :rectfun #'rectangle))
-(defvar *world-rect* (rectangles:make-rectangle :lows '(0 0) :highs (list *width* *height*)))
+(defvar *next-world* nil)
 
 (defun remove-from-world (object)
   (spatial-trees:delete object *world*))
 
 (defun add-to-world (object)
-  (spatial-trees:insert object *world*))
+  (spatial-trees:insert object (or *next-world* *world* )))
+
+(defun search-world (rectangle)
+  (spatial-trees:search rectangle *world*))
 
 (defvar *initiative* (make-instance 'cl-heap:priority-queue))
 
-(defun reset-sim ()
-  (cl-heap:empty-queue *initiative*)
-  (setf *world* (spatial-trees:make-spatial-tree
-		 :r :rectfun #'rectangle)))
+(defmethod enqueue (obj &optional (priority 1))  
+  (cl-heap:enqueue *initiative* obj priority))
 
-(defun simulation-update ()
-  (sdl:clear-display sdl:*black*)
-  (iter (for a = (cl-heap:dequeue *initiative*))
-	(with next-initiative = (make-instance 'cl-heap:priority-queue))
-	(while a)
-	(if (is-alive-p a)
-	    (let ((new-init (act a))) 
-	      (draw a)
-	      (if (null new-init)
-		  (remove-from-world a)
-		  (cl-heap:enqueue next-initiative a new-init)))
-	    (death a))
-	(finally (setf *initiative* next-initiative))))
+
 
 
 (defun fade-to-black (color percentage-black)
@@ -58,6 +47,45 @@
 	 (scale (/ max-length l)))
     (map 'vector (lambda (x) (floor (* scale x))) v)))
 
+
+(defmethod distance-within ((p1 vector) (p2 vector) range)
+  (declare (optimize (speed 3) (safety 0))
+	   (type (simple-array integer) p1 p2)
+	   (type integer range))
+  (and (every (lambda (x1 x2)
+		(> range (abs (- x2 x1))))
+	      p1 p2) 
+       (< (reduce #'+ (map 'vector
+			   (lambda (x1 x2)
+			     (* (- x1 x2) (- x1 x2)))
+			   p1 p2))
+	  (* range range))))
+
+
+(defun reset-sim ()
+  (cl-heap:empty-queue *initiative*)
+  (setf *world* (spatial-trees:make-spatial-tree
+		 :r :rectfun #'rectangle)))
+
+(defun simulation-update ()
+  (sdl:clear-display sdl:*black*)
+  (iter (for a = (cl-heap:dequeue *initiative*))
+	(with next-initiative = (make-instance 'cl-heap:priority-queue))
+	(with next-world = (spatial-trees:make-spatial-tree
+			    :r :rectfun #'rectangle))
+	(while a)
+	(let ((*initiative* next-initiative)
+	      (*next-world* next-world))
+	  (if (is-alive-p a)
+	      (progn
+		(act a)
+		(draw a)
+		(enqueue a (initiative a)))
+	      (death a)))
+	(finally (setf *initiative* next-initiative
+		       *world* next-world))))
+
+
 (defun setup-battle (red green)
   (when green
     (dotimes (n 120)
@@ -68,7 +96,7 @@
 			      :location (vector (+ (- *width* (/ *width* 4))
 						   (random (/ *width* 4)))
 						(random *height*)))))
-	(cl-heap:enqueue *initiative* s (initiative s))
+	(enqueue s)
 	(add-to-world s))))
   (when red
     (dotimes (n 60)
@@ -79,5 +107,5 @@
 			      :health (dice:roll "4d10 + 20")
 			      :location (vector (random (/ *width* 4))
 						(random *height*)))))
-	(cl-heap:enqueue *initiative* s (initiative s))
+	(enqueue s)
 	(add-to-world s)))))

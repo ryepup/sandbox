@@ -24,9 +24,20 @@
   (:method progn ((a actor))
     (remove-from-world a)))
 
+(defgeneric initiative (actor)
+  (:method ((a actor))
+    1))
+
+(defmethod enqueue ((a actor) &optional priority)
+  (declare (ignore priority))
+  (call-next-method a (initiative a)))
+
 (defmethod distance ((a actor) (b actor))
   (sdl:distance (location a)
 		(location b)))
+
+(defmethod distance-within ((a actor) (b actor) range)
+  (distance-within (location a) (location b) range))
 
 (defmethod rectangle ((obj actor))
   (rectangles:make-rectangle

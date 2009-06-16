@@ -7,10 +7,13 @@
    (damage-dice :accessor damage-dice :initarg :damage-dice :initform "1d6")
    (sensor-range :accessor sensor-range :initform 100)
    (health :accessor health :initform 100 :initarg :health)
-   (initiative :accessor initiative :initform (dice:roll "1d20"))
+   (initiative :initform (dice:roll "1d20"))
    (team :accessor team :initarg :team :initform sdl:*green*))
   (:default-initargs
       :size 10))
+
+(defmethod initiative ((s ship))
+  (slot-value s 'initiative))
 
 (defmethod print-object ((o ship) s)
   (print-unreadable-object (o s :type t)    
@@ -23,34 +26,35 @@
   (sdl:with-color (c (team actor))
     (sdl:draw-filled-circle (location actor) (size actor))))
 
+(defmethod act :around ((ship ship))
+  (call-next-method)
+  (add-to-world ship))
+
 (defmethod act ((ship ship))
   (or (< (energy ship) 20)
       (attack ship)
       (patrol ship))
   (setf (energy ship)
-	(alexandria:clamp (1+ (energy ship)) 0 100))
-  (initiative ship))
+	(alexandria:clamp (1+ (energy ship)) 0 100)))
 
 
 (defmethod death progn ((ship ship))
-  (cl-heap:enqueue *initiative* 
-		   (make-instance 'explosion
-				  :team (team ship)
-				  :num-particles (* 3 (size ship))
-				  :location (location ship))
-		   -1))
+  (enqueue (make-instance 'explosion
+			  :team (team ship)
+			  :num-particles (* 3 (size ship))
+			  :location (location ship))))
 
 (defmethod attack ((ship ship))
   (alexandria:if-let
    ((enemy (nearest-enemy-ship ship (sensor-range ship))))    
    (alexandria:if-let
-    ((viable-weapons (iter (with range = (distance ship enemy))
-			   (for w in (weapons ship))
-			   (for w-range = (weapon-range w))
-			   (for w-cost = (weapon-energy-cost w))
-			   (when (and (< w-range range)
-				      (< w-cost (energy ship)))
-			     (collect w)))))
+    ((viable-weapons
+      (iter (for w in (weapons ship))
+	    (for w-range = (weapon-range w))
+	    (for w-cost = (weapon-energy-cost w))
+	    (when (and (distance-within ship enemy w-range)
+		       (< w-cost (energy ship)))
+	      (collect w)))))
     (attack-with-weapon ship enemy (alexandria:random-elt viable-weapons)) 
     ;;not in weapons range, give chase
     (iter (for idx in-vector #(0 1))
@@ -64,25 +68,23 @@
 	    (decf (energy ship)))))))
 
 (defmethod find-ships ((ship actor) range)
-  (iter (for s in (spatial-trees:search
+  (iter (for s in (search-world 
 		   (rectangles:make-rectangle
 		    :lows (iter (for c in-vector (location ship))
 				(collect (- c range)))
 		    :highs (iter (for c in-vector (location ship))
-				 (collect (+ c range))))
-		   *world*))
-	(when (and (typep s 'ship) (< (distance s ship) range))
+				 (collect (+ c range))))))
+	(when (distance-within s ship range)
 	  (collect s))))
 
-(defun nearest-enemy-ship (ship range)
-  (let ((q (make-instance 'cl-heap:priority-queue)))
-    (iter (for enemy in (find-ships ship range))
-	  (unless (eq (team enemy)
-		      (team ship))
-	    (cl-heap:enqueue q enemy (distance enemy ship))))
-    (prog1 
-	(cl-heap:dequeue q)
-      (cl-heap:empty-queue q))))
+(defun nearest-enemy-ship (ship range) 
+  (iter
+   (with q = (make-instance 'cl-heap:priority-queue))
+   (for enemy in (find-ships ship range))
+   (unless (eq (team enemy)
+	       (team ship))
+     (cl-heap:enqueue q enemy (distance enemy ship)))
+   (finally (return (cl-heap:peep-at-queue q)))))
 
 (defmethod enemy-ships ((ship ship) range)
   (let ((q (make-instance 'cl-heap:priority-queue)))
@@ -96,7 +98,7 @@
 
 (defmethod patrol ((ship ship))
   ;;don't go too fast
-  (if (> (sdl:distance (velocity ship) #(0 0)) 5)
+  (if (not (speed-within ship 5))
       (iter (for idx in-vector #(0 1))
 	    (for c in-vector (velocity ship))
 	    (when (plusp c)
@@ -108,7 +110,7 @@
 	(too-close (* 3 (size ship))))
     (iter (for nearby-ship in (find-ships ship (* 2 too-close)))
 	  (for next-ship-location = (next-location nearby-ship))
-	  (when (< (sdl:distance next-ship-location n) too-close)
+	  (when (distance-within next-ship-location n too-close)
 	    ;;too close, move away from next-ship-location
 	    (iter (for idx in-vector #(0 1))
 		  (when (< (aref next-ship-location idx)
@@ -135,4 +137,5 @@
 	     (decf (energy ship) 1))
 	    ;;if we're stopped, start
 	    ((zerop (aref (velocity ship) idx))
-	     (setf (aref (velocity ship) idx) (alexandria:random-elt '(1 -1))))))))
+	     (setf (aref (velocity ship) idx)
+		   (alexandria:random-elt '(1 -1))))))))

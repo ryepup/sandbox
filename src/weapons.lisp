@@ -1,9 +1,7 @@
 (in-package :sandbox)
 
-
-
-(defvar *weapons* '((:laser "1d4" 10 20)
-		    (:torpedo "2d10 + 5" 15 95)))
+(defvar *weapons* '((:laser "2d6" 5 40)
+		    (:torpedo "2d10 + 5" 50 40)))
 
 (defun weapon-damage (weapon)
   (dice:roll (second (assoc weapon *weapons*))))
@@ -24,35 +22,32 @@
   (decf (health defender) (weapon-damage weapon)))
 
 
-
-
-
-
 (defclass torpedo (movable)
   ((team :accessor team :initarg :team :initform sdl:*green*)
    (target :accessor target :initarg :target)
-   (age :accessor age :initform 100 :initarg :age))
+   (age :accessor age :initform 50 :initarg :age))
   (:default-initargs
       :size 5))
 
 (defmethod is-alive-p ((tp torpedo))
- (and (plusp (age tp))
-      (target tp)))
+ (plusp (age tp)))
+
+(defmethod initiative ((tp torpedo))
+  -1)
 
 (defmethod death progn ((tp torpedo))
-  (cl-heap:enqueue *initiative* 
-		   (make-instance 'explosion
-				  :team sdl:*white*
-				  :num-particles (dice:roll "2d6")
-				  :location (location tp))
-		   -1))
+  (enqueue (make-instance 'explosion
+			  :team sdl:*white*
+			  :num-particles (dice:roll "2d6")
+			  :location (location tp))))
 
 (defmethod act ((tp torpedo))
   (decf (age tp))
   (cond
     ;;detonate
-    ((rectangles:intersectp (rectangle tp)
-			    (rectangle (target tp)))     
+    ((and (target tp)
+	  (rectangles:intersectp (rectangle tp)
+				 (rectangle (target tp))))     
      (decf (health (target tp))
 	   (weapon-damage :torpedo))
      (setf (target tp) nil))
@@ -62,24 +57,22 @@
 	(setf (velocity tp)
 	      (direction (location tp)
 			 (location (target tp))
-			 (min 10 (+ (age tp) 5)))))
+			 (min 8 (+ (age tp) 5)))))
     ;;acquire a new target
-    (T (setf (target tp) (nearest-enemy-ship tp 100))))
-  -1)
+    (T (setf (target tp) (nearest-enemy-ship tp 100)))))
 
 (defmethod draw ((actor torpedo))
   (sdl:draw-filled-circle (location actor) 2 :color sdl:*white*))
 
 (defmethod attack-with-weapon ((attacker ship)
 			       (defender ship)
-			       (weapon (eql :torpedo)))
-  (let ((tp (make-instance 'torpedo
-			   :location (copy-seq (location attacker))
-			   :team (team attacker)
-			   :target defender
-			   :velocity (direction (location attacker)
-						(location defender)
-						10))))
-    (decf (energy attacker) (weapon-energy-cost weapon))
-    (add-to-world tp)
-    (cl-heap:enqueue *initiative* tp -1)))
+			       (weapon (eql :torpedo))) 
+  (decf (energy attacker) (weapon-energy-cost weapon))
+  (enqueue
+   (make-instance 'torpedo
+		  :location (copy-seq (location attacker))
+		  :team (team attacker)
+		  :target defender
+		  :velocity (direction (location attacker)
+				       (location defender)
+				       10))))
