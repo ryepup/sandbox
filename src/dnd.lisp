@@ -6,8 +6,9 @@
 (defvar *rolls* (make-hash-table))
 
 (defun read-rolls ()
-  (iter
-   (print-rolls T 0 (save-roll (read-line)))))
+  (handler-case 
+      (iter (print-rolls T 0 (save-roll (read-line))))
+    (end-of-file () (print-rolls))))
 
 (defun save-roll (rolldef)
   (labels
