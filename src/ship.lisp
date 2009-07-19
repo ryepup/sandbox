@@ -1,5 +1,5 @@
 (in-package :sandbox)
-
+(declaim (optimize (speed 0) (safety 3) (debug 3)))
 (defclass ship (movable)
   ((weapons :accessor weapons :initform '(:laser)
 	    :initarg :weapons)
@@ -7,13 +7,35 @@
    (damage-dice :accessor damage-dice :initarg :damage-dice :initform "1d6")
    (sensor-range :accessor sensor-range :initform 100)
    (health :accessor health :initform 100 :initarg :health)
-   (initiative :initform (dice:roll "1d20"))
+   (initiative :initform (dice:roll "1d20")
+	       :reader initiative)
+   (surface :accessor surface :initform nil)
    (team :accessor team :initarg :team :initform sdl:*green*))
   (:default-initargs
       :size 10))
 
-(defmethod initiative ((s ship))
-  (slot-value s 'initiative))
+(defmethod initialize-instance :after ((a ship) &key &allow-other-keys)
+)
+
+(defun ensure-surface (ship)
+  (unless (surface ship)
+    (let* ((size (size ship))
+	   (double-size (* size 2))
+	   (surf (sdl:create-surface double-size double-size :color-key (sdl:color) )))
+
+      (sdl:draw-filled-circle
+       (sdl:point :x size
+		  :y size)
+       size
+       :surface surf
+       :color (team ship))
+
+	(setf (surface ship) surf))))
+
+(defmethod draw ((actor ship))
+  (ensure-surface actor)
+  (sdl:set-point (surface actor) (location actor))
+  (sdl:blit-surface (surface actor)))
 
 (defmethod print-object ((o ship) s)
   (print-unreadable-object (o s :type t)    
@@ -22,9 +44,6 @@
 (defmethod is-alive-p ((a ship))
   (plusp (health a)))
 
-(defmethod draw ((actor ship))
-  (sdl:with-color (c (team actor))
-    (sdl:draw-filled-circle (location actor) (size actor))))
 
 (defmethod act :around ((ship ship))
   (call-next-method)

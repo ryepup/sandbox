@@ -32,9 +32,6 @@
 (defmethod enqueue (obj &optional (priority 1))  
   (cl-heap:enqueue *initiative* obj priority))
 
-
-
-
 (defun fade-to-black (color percentage-black)
   (let ((percentage-black (min 1 percentage-black)))
     (sdl:color :r (* (- 1 percentage-black) (sdl:r color))
@@ -48,10 +45,7 @@
     (map 'vector (lambda (x) (floor (* scale x))) v)))
 
 
-(defmethod distance-within ((p1 vector) (p2 vector) range)
-  (declare (optimize (speed 3) (safety 0))
-	   (type (simple-array integer) p1 p2)
-	   (type integer range))
+(defmethod distance-within ((p1 vector) (p2 vector) range)  
   (and (every (lambda (x1 x2)
 		(> range (abs (- x2 x1))))
 	      p1 p2) 
@@ -67,7 +61,9 @@
   (setf *world* (spatial-trees:make-spatial-tree
 		 :r :rectfun #'rectangle)))
 
-(defun simulation-update ()
+(defvar *time* 0)
+
+(defun simulation-update () 
   (sdl:clear-display sdl:*black*)
   (iter (for a = (cl-heap:dequeue *initiative*))
 	(with next-initiative = (make-instance 'cl-heap:priority-queue))
@@ -83,7 +79,11 @@
 		(enqueue a (initiative a)))
 	      (death a)))
 	(finally (setf *initiative* next-initiative
-		       *world* next-world))))
+		       *world* next-world)))
+  
+;;  (sdl:save-image sdl:*default-display* (format nil "/home/ryan/frame~d.bmp" *time*))
+  
+  (incf *time*))
 
 
 (defun setup-battle (red green)

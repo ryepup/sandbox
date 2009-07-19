@@ -10,7 +10,7 @@
   :author "Ryan Davis <ryan@mokeys.org>"
   :licence "LGPL (or talk to me)"
   :version "0.1"
-  :depends-on (#:iterate #:alexandria #:lispbuilder-sdl
+  :depends-on (#:iterate #:alexandria #:lispbuilder-sdl #:cl-geometry
 			 #:spatial-trees #:cl-heap #:dice)
   :components ((:module
 		:src

@@ -22,7 +22,7 @@
 	       (sdl:update-display))))))
 
 
-(defun random-point ()
+(defun random-point () 
   (sdl:point :x (random *width*)
 	     :y (random *height*)))
 
