@@ -48,3 +48,18 @@
 
 (defmethod draw ((actor actor))
   (sdl:draw-pixel (location actor) :color sdl:*green*))
+
+(defclass blittable ()
+  ((surface :accessor surface :initform nil)))
+
+(defgeneric draw-surface (blittable))
+
+(defmethod draw ((b blittable))
+  (unless (surface b)
+    (setf (surface b) (draw-surface b)))
+  (sdl:set-point (surface b) (location b))
+  (sdl:blit-surface (surface b)))
+
+(defmethod death progn ((b blittable))
+  (alexandria:when-let ((surf (surface b)))
+		       (sdl:free surf)))

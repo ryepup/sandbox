@@ -65,6 +65,8 @@
 
 (defun simulation-update () 
   (sdl:clear-display sdl:*black*)
+  (when *mouse-position*
+    (sdl:draw-filled-circle *mouse-position* 2 :color sdl:*cyan*))
   (iter (for a = (cl-heap:dequeue *initiative*))
 	(with next-initiative = (make-instance 'cl-heap:priority-queue))
 	(with next-world = (spatial-trees:make-spatial-tree
@@ -97,7 +99,18 @@
 						   (random (/ *width* 4)))
 						(random *height*)))))
 	(enqueue s)
-	(add-to-world s))))
+	(add-to-world s)))
+    (dotimes (n (dice:roll "1d6"))
+      (let ((s (make-instance 'sattelite
+			      :team sdl:*green*
+			      :energy (dice:roll "5d10")
+			      :location (vector (+ (- *width* (/ *width* 4))
+						   (random (/ *width* 4)))
+						(random *height*)))))
+	(enqueue s)
+	(add-to-world s)))
+
+    )
   (when red
     (dotimes (n 60)
       (let ((s (make-instance 'ship :team sdl:*red*

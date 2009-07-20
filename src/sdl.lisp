@@ -2,11 +2,15 @@
 (defvar *width* 800)
 (defvar *height* 600)
 
+(defvar *mouse-position* nil)
+
 (defun sdl (&key
 	    (width 800)
 	    (height 600)
 	    (frame-rate 15)
 	    (idlefn #'idle)
+	    mouse-down-fn
+	    mouse-up-fn 
 	    (background sdl:*black*))
   (let ((*width* width)
 	(*height* height))
@@ -16,6 +20,15 @@
       (setf (sdl:frame-rate) frame-rate)
       (sdl:with-events ()
 	(:quit-event () t)
+	(:mouse-motion-event (:x x :y y)
+	  (setf *mouse-position*
+		(sdl:point :x x :y y)))
+	(:MOUSE-BUTTON-DOWN-EVENT (:BUTTON BUTTON :STATE STATE :X X :Y Y)
+				  (when mouse-down-fn
+				    (funcall mouse-down-fn :BUTTON BUTTON :STATE STATE :X X :Y Y)))  
+	(:MOUSE-BUTTON-UP-EVENT (:BUTTON BUTTON :STATE STATE :X X :Y Y)
+				(when mouse-up-fn
+				(funcall mouse-up-fn :BUTTON BUTTON :STATE STATE :X X :Y Y))) 
 	(:video-expose-event () (sdl:update-display))
 	(:idle () 
 	       (funcall idlefn)
