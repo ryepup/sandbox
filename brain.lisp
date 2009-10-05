@@ -15,11 +15,9 @@
   (make-array *dim-board*))
 
 (defun set-cell (x y state &key (board *board*))
-  (setf (aref board x y)
-	(or state
-	    (if (< 50 (random 100))
-		:on :off))))
+  (setf (aref board x y) state))
 (defun get-cell (x y &key (board *board*))
+  (declare )
   (aref board x y))
 
 (defmacro do-board ((x-var y-var cell-var) &body body)
@@ -39,6 +37,7 @@
   "pixels per grid square")
 
 (defvar *board* nil "the state of the board")
+(defvar *stage* nil "staging memory for the next board")
 
 (defun render-cell (x y state)
   (let* ((x-scale (aref *dim-scale* 0))
@@ -75,34 +74,35 @@ screen if needed"
 		       (second *dim-board*))))
 	  (get-cell x y)))))
 
-(defun active-neighbors (cells)
-  (count :on cells))
-
 (defun next-state (x y &optional (state (get-cell x y)))
   (cond
     ((eq :on state) :dying)
     ((eq :dying state) :off)
-    ((eq 2 (active-neighbors (torus-window x y))) :on)
+    ((eq 2 (count :on (torus-window x y))) :on)
     (T :off)))
 
-(defun next-board ()
-  (let ((new-board (make-board)))
-    (do-board (x y cell)
-      (set-cell x y (next-state x y cell) :board new-board))
-    new-board))
+(defun next-board (new-board)
+  (do-board (x y cell)
+    (set-cell x y (next-state x y cell) :board new-board))
+  T)
 
 (defun do-it ()  
   (sdl:with-init ()
     (apply #'sdl:window *dim-screen*)
-    (setf *board* (make-board))
+    (setf *board* (make-board) ;need to setf so threads can see these too
+	  *stage* (make-board)) 
     (do-board (x y cell)
       (declare (ignore cell))
-      (set-cell x y nil))   
+      (set-cell x y (if (< 50 (random 100))
+			:on :off)))  
     (sdl:with-events ()
       (:quit-event () t)
       (:video-expose-event () (sdl:update-display))
-      (:idle ()
-	     (pcall:plet ((new-board (next-board)))
+      (:idle ()	       
+	     (pcall:plet ((next-board (next-board *stage*)))
 	       (render)
-	       (setf *board* new-board))))))
+	       (unless next-board (error "whoa"))
+	       (let ((x *board*))
+		 (setf *board* *stage*
+		       *stage* x)))))))
  
