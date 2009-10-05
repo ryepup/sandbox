@@ -1,6 +1,7 @@
 ;;;; load our libs
 (require 'asdf)
 (asdf:oos 'asdf:load-op :lispbuilder-sdl)
+(asdf:oos 'asdf:load-op :pcall)
 
 ;;;; make a namespace
 (defpackage #:brain
@@ -8,25 +9,20 @@
 
 (in-package #:brain)
 
-;;some helper functions to abstract my data structure choice
-(defun x (cell) (aref cell 0))
-(defun y (cell) (aref cell 1))
-(defun state (cell) (aref cell 2))
-(defmethod (setf state) (new-state cell)
-  (setf (aref cell 2) new-state))
-(defun make-cell (x y &key state)
-  (vector x y (or state
-		  (if (< 50 (random 100))
-		      :on :off ))))
-
 (defvar *dim-board* '(90 90) "how many squares on the board")
 
 (defun make-board ()
   (make-array *dim-board*))
-(defun set-cell (board cell)
-  (setf (aref board (x cell) (y cell)) cell))
-(defmacro do-board ((x-var y-var cell-var)
-		    &body body)
+
+(defun set-cell (x y state &key (board *board*))
+  (setf (aref board x y)
+	(or state
+	    (if (< 50 (random 100))
+		:on :off))))
+(defun get-cell (x y &key (board *board*))
+  (aref board x y))
+
+(defmacro do-board ((x-var y-var cell-var) &body body)
   "loop over the current board"
   (let ((x (gensym "x"))
 	(y (gensym "y")))
@@ -34,39 +30,36 @@
      (dotimes (,y (second *dim-board*))
        (let ((,x-var ,x)
 	     (,y-var ,y)
-	     (,cell-var (aref *board* ,x ,y)))
+	     (,cell-var (get-cell ,x ,y)))
 	 ,@body)))))
 
-(defvar *dim-screen* '(600 600) "size of the rendering window, pixels")
+(defvar *dim-screen* '(540 540) "size of the rendering window, pixels")
 (defvar *dim-scale*  
   (map 'vector #'/ *dim-screen* *dim-board*)
   "pixels per grid square")
 
 (defvar *board* nil "the state of the board")
 
-(defun render-cell (cell)
-  (let* ((x-scale (truncate (aref *dim-scale* 0)))
-	 (y-scale (truncate (aref *dim-scale* 1)))
-	 (x (truncate (1+ (* (x cell) x-scale))))
-	 (y (truncate (1+ (* (y cell) y-scale))))
-	 (state (state cell)))
-    (sdl:with-color (c (if (eq state :dying)
-			   sdl:*red*
-			   sdl:*white*))
-      (sdl:draw-box-* x y
-			  (1- x-scale)
-			  (1- y-scale)
-			  ))))
+(defun render-cell (x y state)
+  (let* ((x-scale (aref *dim-scale* 0))
+	 (y-scale (aref *dim-scale* 1))
+	 (x (1+ (* x x-scale)))
+	 (y (1+ (* y y-scale)))) 
+    (sdl:draw-box-* x y
+		    (1- x-scale)
+		    (1- y-scale)
+		    :color (if (eq state :dying)
+			       sdl:*red*
+			       sdl:*white*))))
 
 (defun render ()
   (sdl:clear-display sdl:*black*)
-  (do-board (x y cell)
-    (declare (ignore x y))
-    (unless (eq (state cell) :off)
-      (render-cell cell)))
+  (do-board (x y state)
+    (unless (eq state :off)
+      (render-cell x y state)))
   (sdl:update-display))
 
-(defun torus-window (cell)
+(defun torus-window (x y)
   "returns the neighbors of this cell, wrapping around the
 screen if needed"
   (loop for x-offset in '(-1 0 1)
@@ -76,28 +69,26 @@ screen if needed"
 			       '(-1 0 1))		 
 	   collect
 	;;uses modulo to wrap around the window
-	(let* ((x (mod (+ (x cell) x-offset)
+	(let* ((x (mod (+ x x-offset)
 		       (first *dim-board*)))
-	       (y (mod (+ (y cell) y-offset)
+	       (y (mod (+ y y-offset)
 		       (second *dim-board*))))
-	  (aref *board* x y)))))
+	  (get-cell x y)))))
 
 (defun active-neighbors (cells)
-  (count :on cells :key #'state))
+  (count :on cells))
 
-(defun next-state (cell)
-  (let ((state (state cell))) 
-    (cond
-      ((eq :on state) :dying)
-      ((eq :dying state) :off)
-      ((eq 2 (active-neighbors (torus-window cell))) :on)
-      (T :off))))
+(defun next-state (x y &optional (state (get-cell x y)))
+  (cond
+    ((eq :on state) :dying)
+    ((eq :dying state) :off)
+    ((eq 2 (active-neighbors (torus-window x y))) :on)
+    (T :off)))
 
 (defun next-board ()
   (let ((new-board (make-board)))
     (do-board (x y cell)
-      (set-cell new-board
-		(make-cell x y :state (next-state cell))))
+      (set-cell x y (next-state x y cell) :board new-board))
     new-board))
 
 (defun do-it ()  
@@ -106,11 +97,12 @@ screen if needed"
     (setf *board* (make-board))
     (do-board (x y cell)
       (declare (ignore cell))
-      (set-cell *board* (make-cell x y)))   
+      (set-cell x y nil))   
     (sdl:with-events ()
       (:quit-event () t)
       (:video-expose-event () (sdl:update-display))
       (:idle ()
-	     (render)
-	     (setf *board* (next-board))))))
+	     (pcall:plet ((new-board (next-board)))
+	       (render)
+	       (setf *board* new-board))))))
  
